@@ -17,6 +17,7 @@ secret = load_secret()
 admin_ids = 1
 user_dict = {}
 API_CATS_URL = 'https://api.thecatapi.com/v1/images/search'
+API_DOGS_URL = 'https://random.dog/woof.json'
 
 
 class FSMFillForm(StatesGroup):
@@ -243,13 +244,24 @@ async def tomorrow_shift(message: Message):
 
 
 @router.message(F.text.lower().in_(["котик", "кот", "кошечка", "кошка", "котэ", "котейка", "киса", "кисуня", "кисуля",
-                                    "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾", "🐱", "кошак"]),
+                                    "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾", "🐱", "🐈","🐈‍⬛","кошак"]),
                 StateFilter(default_state))
 async def tomorrow_shift(message: Message):
     cat_response = requests.get(API_CATS_URL)
     cat_link = cat_response.json()[0]['url']
     await message.answer_photo(cat_link)
     await message.answer(f'😸 Вот вам котик ')
+
+
+@router.message(F.text.lower().in_(["песик", "пес", "собака", "собакен", "пёс", "пёсель", "пёсик",
+                                    "🐶", "🐕", "🐩", "🦮", "🐕‍", "🐕‍🦺"]),
+                StateFilter(default_state))
+async def tomorrow_shift(message: Message):
+    dog_response = requests.get(API_DOGS_URL)
+    dog_link = dog_response.json()['url']
+    await message.answer_photo(dog_link)
+    await message.answer(f'🐶 Вот вам пёсик')
+
 
 
 @router.message(StateFilter(default_state))
