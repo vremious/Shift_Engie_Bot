@@ -4,6 +4,8 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.state import default_state, State, StatesGroup
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+
+from bot import PROXY_URL
 from keyboards.keyboards import yes_no_kb
 from config_data.config import load_secret
 from database.db import cmd_start_db, cur, add_tabel, add_notifications, add_notifications_time
@@ -11,11 +13,14 @@ from database.oracle_db import get_shifts, read_shifts, get_all_tabels, date2, m
 from aiogram.fsm.context import FSMContext
 from services.services import input_date
 
-
 router = Router()
 secret = load_secret()
 admin_ids = 1
 user_dict = {}
+session = requests.Session()
+session.proxies = {'http': 'http://10.248.36.11:3128',
+                   'https': 'http://10.248.36.11:3128',
+                   }
 API_CATS_URL = 'https://api.thecatapi.com/v1/images/search'
 API_DOGS_URL = 'https://random.dog/woof.json'
 
@@ -244,10 +249,10 @@ async def tomorrow_shift(message: Message):
 
 
 @router.message(F.text.lower().in_(["котик", "кот", "кошечка", "кошка", "котэ", "котейка", "киса", "кисуня", "кисуля",
-                                    "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾", "🐱", "🐈","🐈‍⬛","кошак"]),
+                                    "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾", "🐱", "🐈", "🐈‍⬛", "кошак"]),
                 StateFilter(default_state))
 async def tomorrow_shift(message: Message):
-    cat_response = requests.get(API_CATS_URL)
+    cat_response = session.get(API_CATS_URL)
     cat_link = cat_response.json()[0]['url']
     await message.answer_photo(cat_link)
     await message.answer(f'😸 Вот вам котик ')
@@ -257,11 +262,10 @@ async def tomorrow_shift(message: Message):
                                     "🐶", "🐕", "🐩", "🦮", "🐕‍", "🐕‍🦺"]),
                 StateFilter(default_state))
 async def tomorrow_shift(message: Message):
-    dog_response = requests.get(API_DOGS_URL)
+    dog_response = session.get(API_DOGS_URL, proxies=PROXY_URL)
     dog_link = dog_response.json()['url']
     await message.answer_photo(dog_link)
     await message.answer(f'🐶 Вот вам пёсик')
-
 
 
 @router.message(StateFilter(default_state))
