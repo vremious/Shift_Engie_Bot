@@ -1,9 +1,13 @@
 import asyncio
+from datetime import datetime
+
 import requests
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart, StateFilter
+from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.state import default_state, State, StatesGroup
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram_calendar import SimpleCalendar, get_user_locale, SimpleCalendarCallback
 
 from bot import PROXY_URL
 from keyboards.keyboards import yes_no_kb
@@ -41,7 +45,8 @@ async def process_start_command(message: Message):
     )
 
 
-@router.message(Command(commands='help'), StateFilter(default_state))
+@router.message(F.text.lower().in_(['/help', 'помощь по работе бота', "помощь по работе бота 🆘"]),
+                StateFilter(default_state))
 async def process_cancel_command(message: Message):
     await message.answer(
         text='🤖Бот умеет:🤖\n'
@@ -64,7 +69,10 @@ async def process_cancel_command(message: Message):
         text='🤓Например чтобы узнать график работы на 23 февраля 2024 года - отправьте боту 23.02.2024')
     await asyncio.sleep(1)
     await message.answer(
-        text='😸Приятного пользования')
+        text='🔹Также можно сделать запрос через календарь по нажатию на нижнюю кнопку "Календарь"'
+             '\nИли написать "Календарь" либо "Дата" боту)')
+    await message.answer(
+        text='😸Приятного пользования', reply_markup=yes_no_kb)
 
 
 @router.message(Command(commands='cancel'), StateFilter(default_state))
@@ -86,7 +94,7 @@ async def process_cancel_command_state(message: Message, state: FSMContext):
     await state.clear()
 
 
-@router.message(Command(commands='fillform'), StateFilter(default_state))
+@router.message(F.text.lower().in_(['/fillform', "изменить настройки анкеты ⚙"]), StateFilter(default_state))
 async def process_fillform_command(message: Message, state: FSMContext):
     await message.answer(text=' 🖥 Пожалуйста, введите ваш номер CSP:')
     await state.set_state(FSMFillForm.fill_tabel)
@@ -232,14 +240,16 @@ async def warning_not_notification(message: Message):
     )
 
 
-@router.message(Command(commands='TS'), StateFilter(default_state))
+@router.message(F.text.lower().in_(['какая смена завтра', '/ts', 'какая завтра смена 🤔']),  StateFilter(default_state))
 async def tomorrow_shift(message: Message):
     cur.execute("SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=message.from_user.id))
     print(message.from_user.id)
     try:
         result = cur.fetchall()[0][-1]
+        print(result)
         if result:
-            await message.answer(f'Завтра - {date2()} \nУ вас {str(read_shifts(get_shifts(date2(), result)))}')
+            await message.answer(f'Завтра - {date2()} \nУ вас {str(read_shifts(get_shifts(date2(), result)))}',
+                                 reply_markup=yes_no_kb)
         else:
             await message.answer(f'⛔ Вы не заполнили форму \n👉 /fillform')
     except IndexError:
@@ -255,7 +265,7 @@ async def tomorrow_shift(message: Message):
     cat_response = session.get(API_CATS_URL)
     cat_link = cat_response.json()[0]['url']
     await message.answer_photo(cat_link)
-    await message.answer(f'😸 Вот вам котик ')
+    await message.answer(f'😸 Вот вам котик ', reply_markup=yes_no_kb)
 
 
 @router.message(F.text.lower().in_(["песик", "пес", "собака", "собакен", "пёс", "пёсель", "пёсик",
@@ -265,7 +275,40 @@ async def tomorrow_shift(message: Message):
     dog_response = session.get(API_DOGS_URL, proxies=PROXY_URL)
     dog_link = dog_response.json()['url']
     await message.answer_photo(dog_link)
-    await message.answer(f'🐶 Вот вам пёсик')
+    await message.answer(f'🐶 Вот вам пёсик', reply_markup=yes_no_kb)
+
+
+@router.message(F.text.lower().in_(["дата", "календарь 🗓️", "календарь"]),
+                StateFilter(default_state))
+async def calendar_show(message: Message):
+    await message.answer(text='Выберите дату', reply_markup=await SimpleCalendar(locale='ru_RU').start_calendar())
+
+
+@router.callback_query(SimpleCalendarCallback.filter())
+async def process_simple_calendar(callback_query: CallbackQuery, callback_data: CallbackData):
+    calendar = SimpleCalendar(
+        locale=await get_user_locale(callback_query.from_user), show_alerts=True
+    )
+    calendar.set_dates_range(datetime(2024, 1, 1), datetime(2025, 12, 31))
+    selected, date = await calendar.process_selection(callback_query, callback_data)
+    if selected:
+        print(match_dates(date.strftime("%d.%m.%Y")))
+        if match_dates(date.strftime("%d.%m.%Y")):
+            cur.execute(
+                "SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=str(callback_query.from_user.id)))
+            try:
+                result = cur.fetchall()[0][-1]
+                if result:
+                    await callback_query.message.answer(f'{date.strftime("%d.%m.%Y")}\nУ вас '
+                                                        f'{str(read_shifts(get_shifts(input_date(match_dates(date.strftime("%d.%m.%Y"))), result)))}', reply_markup=yes_no_kb)
+                else:
+                    await callback_query.message.answer(f'⛔ Вы не заполнили форму \n👉 /fillform')
+            except IndexError:
+                await callback_query.message.answer(f'⛔ Ошибка!\n'
+                                                    f'Нажмите 👉 /start\n'
+                                                    f'Повторите заполнение формы\n👉 /fillform ')
+        else:
+            await callback_query.message.answer(text='🤷 Извините, моя твоя не понимать. 🤷‍', reply_markup=yes_no_kb)
 
 
 @router.message(StateFilter(default_state))
@@ -277,7 +320,8 @@ async def send_echo(message: Message):
             result = cur.fetchall()[0][-1]
             if result:
                 await message.reply(f'\nУ вас '
-                                    f'{str(read_shifts(get_shifts(input_date(match_dates(message.text)), result)))}')
+                                    f'{str(read_shifts(get_shifts(input_date(match_dates(message.text)), result)))}',
+                                    reply_markup=yes_no_kb)
             else:
                 await message.answer(f'⛔ Вы не заполнили форму \n👉 /fillform')
         except IndexError:
@@ -285,4 +329,4 @@ async def send_echo(message: Message):
                                  f'Нажмите 👉 /start\n'
                                  f'Повторите заполнение формы\n👉 /fillform ')
     else:
-        await message.reply(text='🤷 Извините, моя твоя не понимать. 🤷‍')
+        await message.reply(text='🤷 Извините, моя твоя не понимать. 🤷‍', reply_markup=yes_no_kb)

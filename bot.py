@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import datetime
+import sys
+
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from config_data.config import Config, load_config
@@ -46,6 +48,7 @@ async def start():
 async def main():
     logging.basicConfig(
         level=logging.INFO,
+        stream=sys.stdout,
         format='%(filename)s:%(lineno)d #%(levelname)-8s '
                '[%(asctime)s] - %(name)s - %(message)s')
 

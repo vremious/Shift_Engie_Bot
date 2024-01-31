@@ -2,7 +2,7 @@ import oracledb
 import datetime
 import re
 
-oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
+
 
 
 def date2():
@@ -16,14 +16,16 @@ def match_dates(date):
 
 
 def get_shifts(date, tabel):
+    oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
     pool = oracledb.create_pool(
         user="TELCOMM",
         password='TELCOMM',
         dsn="10.3.1.20/ora11g",
         port=1521,
-        min=1, max=5, increment=1,
-        getmode=oracledb.POOL_GETMODE_NOWAIT)
+        min=1, max=1, increment=0,
+        timeout=0)
     connection = pool.acquire()
+    # print(connection.is_healthy())
     cursor = connection.cursor()
     cursor.execute(
         "SELECT AGENT, to_char(DT, 'dd.mm.yyyy'), GNAME, BEGIN1, DUR1, BREAK1, BEGIN2, DUR2, BREAK2, "
@@ -35,12 +37,14 @@ def get_shifts(date, tabel):
 
 
 def get_all_tabels():
+    oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
     pool = oracledb.create_pool(
         user="TELCOMM",
         password='TELCOMM',
         dsn="10.3.1.20/ora11g",
         port=1521,
-        min=1, max=2, increment=1)
+        min=1, max=1, increment=0,
+        timeout=0)
     connection = pool.acquire()
     cursor = connection.cursor()
     cursor.execute("SELECT DISTINCT AGENT FROM t_graph_workday3")
