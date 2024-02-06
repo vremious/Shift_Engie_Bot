@@ -272,7 +272,7 @@ async def tomorrow_shift(message: Message):
                                     "🐶", "🐕", "🐩", "🦮", "🐕‍", "🐕‍🦺"]),
                 StateFilter(default_state))
 async def tomorrow_shift(message: Message):
-    dog_response = session.get(API_DOGS_URL, proxies=PROXY_URL)
+    dog_response = session.get(API_DOGS_URL)
     dog_link = dog_response.json()['url']
     await message.answer_photo(dog_link)
     await message.answer(f'🐶 Вот вам пёсик', reply_markup=yes_no_kb)
@@ -281,7 +281,8 @@ async def tomorrow_shift(message: Message):
 @router.message(F.text.lower().in_(["дата", "календарь 🗓️", "календарь"]),
                 StateFilter(default_state))
 async def calendar_show(message: Message):
-    await message.answer(text='Выберите дату', reply_markup=await SimpleCalendar(locale='ru_RU').start_calendar())
+    await message.answer(text='Выберите дату', reply_markup=await SimpleCalendar(locale='ru_RU').start_calendar(
+        year=int(datetime.now().strftime("%Y")), month=int(datetime.now().strftime("%m"))))
 
 
 @router.callback_query(SimpleCalendarCallback.filter())
@@ -289,7 +290,7 @@ async def process_simple_calendar(callback_query: CallbackQuery, callback_data: 
     calendar = SimpleCalendar(
         locale=await get_user_locale(callback_query.from_user), show_alerts=True
     )
-    calendar.set_dates_range(datetime(2024, 1, 1), datetime(2025, 12, 31))
+    calendar.set_dates_range(datetime(2024, 1, 1), datetime(2099, 12, 31))
     selected, date = await calendar.process_selection(callback_query, callback_data)
     if selected:
         print(match_dates(date.strftime("%d.%m.%Y")))

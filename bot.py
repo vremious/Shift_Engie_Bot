@@ -23,7 +23,7 @@ bot = Bot(token=config.tg_bot.token, parse_mode='HTML', session=session)
 
 
 async def check():
-    print('Reminder started!')
+    logger.info('Reminder started!')
     while True:
         cur.execute("SELECT * FROM accounts;")
         reminders_results = cur.fetchall()
@@ -47,7 +47,7 @@ async def start():
 
 async def main():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         stream=sys.stdout,
         format='%(filename)s:%(lineno)d #%(levelname)-8s '
                '[%(asctime)s] - %(name)s - %(message)s')

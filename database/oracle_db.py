@@ -1,8 +1,53 @@
 import oracledb
 import datetime
 import re
+import logging
+
+# Инициализируем логгер модуля
+logger = logging.getLogger(__name__)
+
+# Устанавливаем логгеру уровень `DEBUG`
+logger.setLevel(logging.DEBUG)
 
 
+# Определяем свой фильтр, наследуюясь от класса Filter библиотеки logging
+class ErrorLogFilter(logging.Filter):
+    # Переопределяем метод filter, который принимает `self` и `record`
+    # Переменная рекорд будет ссылаться на объект класса LogRecord
+    def filter(self, record):
+        return record.levelname == 'ERROR'
+
+
+# Инициализируем форматтер
+formatter_1 = logging.Formatter(
+    fmt='[%(asctime)s] #%(levelname)-8s %(filename)s:'
+        '%(lineno)d - %(name)s:%(funcName)s - %(message)s'
+)
+
+# Инициализируем хэндлер, который будет писать логи в файл `error.log`
+error_file = logging.FileHandler('error.log', 'w', encoding='utf-8')
+# Устанавливаем хэндлеру уровень `DEBUG`
+error_file.setLevel(logging.DEBUG)
+
+# Добавляем хэндлеру фильтр `ErrorLogFilter`, который будет пропускать в
+# хэндлер только логи уровня `ERROR`
+error_file.addFilter(ErrorLogFilter())
+
+# Определяем форматирование логов в хэндлере
+error_file.setFormatter(formatter_1)
+
+# Добавляем хэндлер в логгер
+logger.addHandler(error_file)
+
+oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
+pool = oracledb.create_pool(
+    user="TELCOMM",
+    password='TELCOMM',
+    dsn="10.3.1.20/ora11g",
+    port=1521,
+    min=1, max=1, increment=0,
+    timeout=0)
+connection = pool.acquire()
 
 
 def date2():
@@ -16,15 +61,6 @@ def match_dates(date):
 
 
 def get_shifts(date, tabel):
-    oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
-    pool = oracledb.create_pool(
-        user="TELCOMM",
-        password='TELCOMM',
-        dsn="10.3.1.20/ora11g",
-        port=1521,
-        min=1, max=1, increment=0,
-        timeout=0)
-    connection = pool.acquire()
     # print(connection.is_healthy())
     cursor = connection.cursor()
     cursor.execute(
@@ -33,19 +69,15 @@ def get_shifts(date, tabel):
         " t_graph_workday3 WHERE "
         "to_char(DT,'dd.mm.yyyy') ='{date_month}' AND AGENT = '{tabel}'"
         " AND STATUS = 1 ".format(date_month=date, tabel=tabel))
+    logger.debug('Лог DEBUG')
+    logger.info('Лог INFO')
+    logger.warning('Лог WARNING')
+    logger.error('Лог ERROR')
+    logger.critical('Лог CRITICAL')
     return [i for i in cursor]
 
 
 def get_all_tabels():
-    oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
-    pool = oracledb.create_pool(
-        user="TELCOMM",
-        password='TELCOMM',
-        dsn="10.3.1.20/ora11g",
-        port=1521,
-        min=1, max=1, increment=0,
-        timeout=0)
-    connection = pool.acquire()
     cursor = connection.cursor()
     cursor.execute("SELECT DISTINCT AGENT FROM t_graph_workday3")
     return [i[0] for i in cursor]
