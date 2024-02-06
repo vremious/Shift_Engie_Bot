@@ -5,23 +5,23 @@ import sys
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from config_data.config import Config, load_config
+from config_data.config import *
 from database.oracle_db import get_shifts, date2, read_shifts
 from handlers import user_handlers
 from aiogram.client.session.aiohttp import AiohttpSession
 from database.db import db_start, cur
+from database.oracle_db import maintain_connection
 
 
-# redis = Redis(host='10.248.38.211')
-PROXY_URL = 'http://10.248.36.11:3128'
+PROXY_URL = load_proxy()
 session = AiohttpSession(proxy=PROXY_URL)
-# storage = RedisStorage(redis=redis)
 logger = logging.getLogger(__name__)
 storage = MemoryStorage()
 config: Config = load_config()
 bot = Bot(token=config.tg_bot.token, parse_mode='HTML', session=session)
 
 
+# Функция отправки напоминаний пользователям
 async def check():
     logger.info('Reminder started!')
     while True:
@@ -35,6 +35,15 @@ async def check():
         await asyncio.sleep(60)
 
 
+# Функция для поддержания коннекта с БД Oracle (Один запрос в 10 минут)
+async def oracle():
+    logger.info('Oracle connection maintained')
+    maintain_connection()
+    await asyncio.sleep(600)
+    await oracle()
+
+
+# Синхронизация секунд при запуске бота (чтобы уведомления приходили ровно в 00 секунд)
 async def start():
     current_sec = int(datetime.datetime.now().strftime("%S"))
     delay = 60 - current_sec
@@ -58,6 +67,7 @@ async def main():
 
     dp.include_router(user_handlers.router)
     asyncio.ensure_future(start())
+    asyncio.ensure_future(oracle())
     await db_start()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)

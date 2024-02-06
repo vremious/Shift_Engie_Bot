@@ -1,33 +1,40 @@
 import oracledb
 import datetime
 import re
+from config_data.config import load_oracle_password, load_oracle_dsn, load_oracle_user
 import logging
 
-#Создание коннекта с БД Oracle (с использованием Thick Client)
+# Создание коннекта с БД Oracle (с использованием Thick Client)
 oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
 pool = oracledb.create_pool(
-    user="TELCOMM",
-    password='TELCOMM',
-    dsn="10.3.1.20/ora11g",
+    user=load_oracle_user(),
+    password=load_oracle_password(),
+    dsn=load_oracle_dsn(),
     port=1521,
     min=1, max=1, increment=0,
     timeout=0)
 connection = pool.acquire()
 
 
-#Создаём функцию "даты завтрашенего дня"
+# Функция для поддержания коннекта с базой
+def maintain_connection():
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM DUAL")
+
+
+# Функция "даты завтрашенего дня"
 def date2():
     return (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
 
 
-#Проверка соответствия введения формата даты при ручном запросе
+# Проверка соответствия введения формата даты при ручном запросе
 def match_dates(date):
     match = re.fullmatch(r'\d\d\W\d\d\W\d\d\d\d', date)
     if match:
         return date
 
 
-#функция лля запроса в БД Oracle с рабочими сменами по дате и табельному номеру работника
+# функция лля запроса в БД Oracle с рабочими сменами по дате и табельному номеру работника
 def get_shifts(date, tabel):
     cursor = connection.cursor()
     cursor.execute(
@@ -39,13 +46,14 @@ def get_shifts(date, tabel):
     return [i for i in cursor]
 
 
-#Функция 
+# Функция
 def get_all_tabels():
     cursor = connection.cursor()
     cursor.execute("SELECT DISTINCT AGENT FROM t_graph_workday3")
     return [i[0] for i in cursor]
 
-#Функция для расшифровки времени начала рабочего дня, перерывов и конца рабочего дня из данных, полученных от БД Oracle
+
+# Функция для расшифровки времени начала рабочего дня, перерывов и конца рабочего дня из данных, полученных от БД Oracle
 def read_shifts(results):
     try:
         shift = results[0][2]
@@ -61,7 +69,7 @@ def read_shifts(results):
         time_break2 = results[0][8]
         sign = results[0][9]
 
-        #Функция для определения типа смены взависимости от полученных ранее данных
+        # Функция для определения типа смены взависимости от полученных ранее данных
         def shift_type():
             if shift == 'У':
                 if time_start1 and not time_start2:
@@ -106,7 +114,7 @@ def read_shifts(results):
     except IndexError:
         return f'неверно введена дата ⛔'
 
-    #Функция определения конца рабочего дня для утренней и ночной смены
+    # Функция определения конца рабочего дня для утренней и ночной смены
     def shift_time_end1():
         if time_break1:
             shift_end1 = time_start1 + time_shift_dur1 + time_break1 / 60
@@ -114,7 +122,7 @@ def read_shifts(results):
             shift_end1 = time_start1 + time_shift_dur1
         return shift_end1
 
-    #Функция определения конца рабочего дня для разрывной смены
+    # Функция определения конца рабочего дня для разрывной смены
     def shift_time_end2():
         if time_break2:
             shift_end2 = time_start2 + time_shift_dur2 + time_break2 / 60
@@ -122,7 +130,7 @@ def read_shifts(results):
             shift_end2 = time_start2 + time_shift_dur2
         return shift_end2
 
-    #Функция-конвертер времени из десятичных дробей в часы:минуты
+    # Функция-конвертер времени из десятичных дробей в часы:минуты
     def time_converter(time):
         if time != 0:
             leftover_hours = int(time // 1)
@@ -140,4 +148,3 @@ def read_shifts(results):
             return '0:00'
 
     return shift_type()
-

@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-
+from config_data.config import load_proxy
 import requests
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart, StateFilter
@@ -8,8 +8,6 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.state import default_state, State, StatesGroup
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from aiogram_calendar import SimpleCalendar, get_user_locale, SimpleCalendarCallback
-
-from bot import PROXY_URL
 from keyboards.keyboards import yes_no_kb
 from config_data.config import load_secret
 from database.db import cmd_start_db, cur, add_tabel, add_notifications, add_notifications_time
@@ -22,8 +20,8 @@ secret = load_secret()
 admin_ids = 1
 user_dict = {}
 session = requests.Session()
-session.proxies = {'http': 'http://10.248.36.11:3128',
-                   'https': 'http://10.248.36.11:3128',
+session.proxies = {'http': load_proxy(),
+                   'https': load_proxy(),
                    }
 API_CATS_URL = 'https://api.thecatapi.com/v1/images/search'
 API_DOGS_URL = 'https://random.dog/woof.json'
@@ -240,7 +238,7 @@ async def warning_not_notification(message: Message):
     )
 
 
-@router.message(F.text.lower().in_(['какая смена завтра', '/ts', 'какая завтра смена 🤔']),  StateFilter(default_state))
+@router.message(F.text.lower().in_(['какая смена завтра', '/ts', 'какая завтра смена 🤔']), StateFilter(default_state))
 async def tomorrow_shift(message: Message):
     cur.execute("SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=message.from_user.id))
     print(message.from_user.id)
@@ -293,7 +291,6 @@ async def process_simple_calendar(callback_query: CallbackQuery, callback_data: 
     calendar.set_dates_range(datetime(2024, 1, 1), datetime(2099, 12, 31))
     selected, date = await calendar.process_selection(callback_query, callback_data)
     if selected:
-        print(match_dates(date.strftime("%d.%m.%Y")))
         if match_dates(date.strftime("%d.%m.%Y")):
             cur.execute(
                 "SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=str(callback_query.from_user.id)))
@@ -301,7 +298,8 @@ async def process_simple_calendar(callback_query: CallbackQuery, callback_data: 
                 result = cur.fetchall()[0][-1]
                 if result:
                     await callback_query.message.answer(f'{date.strftime("%d.%m.%Y")}\nУ вас '
-                                                        f'{str(read_shifts(get_shifts(input_date(match_dates(date.strftime("%d.%m.%Y"))), result)))}', reply_markup=yes_no_kb)
+                                                        f'{str(read_shifts(get_shifts(input_date(match_dates(date.strftime("%d.%m.%Y"))), result)))}',
+                                                        reply_markup=yes_no_kb)
                 else:
                     await callback_query.message.answer(f'⛔ Вы не заполнили форму \n👉 /fillform')
             except IndexError:

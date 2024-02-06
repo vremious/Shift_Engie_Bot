@@ -3,6 +3,7 @@ from aiogram.types import Message
 from database.db import cur
 
 
+#Неиспользованный в проекте фильтр для аутентификации пользователей по паролю
 class IsAdmin(BaseFilter):
     def __init__(self, admin_ids: int) -> None:
         self.admin_ids = admin_ids

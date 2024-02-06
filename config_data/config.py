@@ -4,7 +4,7 @@ from environs import Env
 
 @dataclass
 class TgBot:
-    token: str            # Токен для доступа к телеграм-боту
+    token: str  # Токен для доступа к телеграм-боту
 
 
 @dataclass
@@ -23,7 +23,32 @@ def load_config(path: str | None = None) -> Config:
     return Config(tg_bot=TgBot(token=env('BOT_TOKEN')))
 
 
+def load_proxy(path: str | None = None):
+    env = Env()
+    env.read_env(path)
+    return env('PROXY_URL')
+
+
 def load_secret(path: str | None = None):
     env = Env()
     env.read_env(path)
     return SecKey(security_key=env('SECURITY_KEY'))
+
+
+def load_oracle_dsn(path: str | None = None):
+    env = Env()
+    env.read_env(path)
+    return env('ORACLE_DSN')
+
+
+def load_oracle_user(path: str | None = None):
+    env = Env()
+    env.read_env(path)
+    return env('ORACLE_USER')
+
+
+def load_oracle_password(path: str | None = None):
+    env = Env()
+    env.read_env(path)
+    return env('ORACLE_PASSWORD')
+
