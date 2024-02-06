@@ -3,42 +3,7 @@ import datetime
 import re
 import logging
 
-# Инициализируем логгер модуля
-logger = logging.getLogger(__name__)
-
-# Устанавливаем логгеру уровень `DEBUG`
-logger.setLevel(logging.DEBUG)
-
-
-# Определяем свой фильтр, наследуюясь от класса Filter библиотеки logging
-class ErrorLogFilter(logging.Filter):
-    # Переопределяем метод filter, который принимает `self` и `record`
-    # Переменная рекорд будет ссылаться на объект класса LogRecord
-    def filter(self, record):
-        return record.levelname == 'ERROR'
-
-
-# Инициализируем форматтер
-formatter_1 = logging.Formatter(
-    fmt='[%(asctime)s] #%(levelname)-8s %(filename)s:'
-        '%(lineno)d - %(name)s:%(funcName)s - %(message)s'
-)
-
-# Инициализируем хэндлер, который будет писать логи в файл `error.log`
-error_file = logging.FileHandler('error.log', 'w', encoding='utf-8')
-# Устанавливаем хэндлеру уровень `DEBUG`
-error_file.setLevel(logging.DEBUG)
-
-# Добавляем хэндлеру фильтр `ErrorLogFilter`, который будет пропускать в
-# хэндлер только логи уровня `ERROR`
-error_file.addFilter(ErrorLogFilter())
-
-# Определяем форматирование логов в хэндлере
-error_file.setFormatter(formatter_1)
-
-# Добавляем хэндлер в логгер
-logger.addHandler(error_file)
-
+#Создание коннекта с БД Oracle (с использованием Thick Client)
 oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
 pool = oracledb.create_pool(
     user="TELCOMM",
@@ -50,18 +15,20 @@ pool = oracledb.create_pool(
 connection = pool.acquire()
 
 
+#Создаём функцию "даты завтрашенего дня"
 def date2():
     return (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%d.%m.%Y")
 
 
+#Проверка соответствия введения формата даты при ручном запросе
 def match_dates(date):
     match = re.fullmatch(r'\d\d\W\d\d\W\d\d\d\d', date)
     if match:
         return date
 
 
+#функция лля запроса в БД Oracle с рабочими сменами по дате и табельному номеру работника
 def get_shifts(date, tabel):
-    # print(connection.is_healthy())
     cursor = connection.cursor()
     cursor.execute(
         "SELECT AGENT, to_char(DT, 'dd.mm.yyyy'), GNAME, BEGIN1, DUR1, BREAK1, BEGIN2, DUR2, BREAK2, "
@@ -69,20 +36,16 @@ def get_shifts(date, tabel):
         " t_graph_workday3 WHERE "
         "to_char(DT,'dd.mm.yyyy') ='{date_month}' AND AGENT = '{tabel}'"
         " AND STATUS = 1 ".format(date_month=date, tabel=tabel))
-    logger.debug('Лог DEBUG')
-    logger.info('Лог INFO')
-    logger.warning('Лог WARNING')
-    logger.error('Лог ERROR')
-    logger.critical('Лог CRITICAL')
     return [i for i in cursor]
 
 
+#Функция 
 def get_all_tabels():
     cursor = connection.cursor()
     cursor.execute("SELECT DISTINCT AGENT FROM t_graph_workday3")
     return [i[0] for i in cursor]
 
-
+#Функция для расшифровки времени начала рабочего дня, перерывов и конца рабочего дня из данных, полученных от БД Oracle
 def read_shifts(results):
     try:
         shift = results[0][2]
@@ -98,6 +61,7 @@ def read_shifts(results):
         time_break2 = results[0][8]
         sign = results[0][9]
 
+        #Функция для определения типа смены взависимости от полученных ранее данных
         def shift_type():
             if shift == 'У':
                 if time_start1 and not time_start2:
@@ -142,6 +106,7 @@ def read_shifts(results):
     except IndexError:
         return f'неверно введена дата ⛔'
 
+    #Функция определения конца рабочего дня для утренней и ночной смены
     def shift_time_end1():
         if time_break1:
             shift_end1 = time_start1 + time_shift_dur1 + time_break1 / 60
@@ -149,6 +114,7 @@ def read_shifts(results):
             shift_end1 = time_start1 + time_shift_dur1
         return shift_end1
 
+    #Функция определения конца рабочего дня для разрывной смены
     def shift_time_end2():
         if time_break2:
             shift_end2 = time_start2 + time_shift_dur2 + time_break2 / 60
@@ -156,6 +122,7 @@ def read_shifts(results):
             shift_end2 = time_start2 + time_shift_dur2
         return shift_end2
 
+    #Функция-конвертер времени из десятичных дробей в часы:минуты
     def time_converter(time):
         if time != 0:
             leftover_hours = int(time // 1)
@@ -174,42 +141,3 @@ def read_shifts(results):
 
     return shift_type()
 
-# print(read_shifts(get_shifts(date_tomorrow, 5028)))
-
-# a,b,c = [int(input()) for i in range(3)]
-# start_date = datetime.date(c, b, a)
-# date_str = start_date.strftime('%d.%m.%Y')
-#
-# print(date_str)
-#
-# shifts = {}
-# keys = {i[0] for i in get_shifts()}
-# for i in keys:
-#     values = []
-#     for j in get_shifts():
-#         if j[0] == i:
-#             values.append(j[1:])
-#     shifts.update({i: values})
-#
-# print(shifts)
-#
-# for tabel, data in shifts.items():
-#     for date in data:
-#         if tabel == 263 and date[0] == '26.12.2023':
-#             print(f'{tabel} - {date}')
-#
-# redis = redis.Redis(host='10.248.38.211', decode_responses=True)
-
-# def get_cache():
-#     cache = redis.get(str(date_tomorrow))
-#     if cache:
-#         return cache
-#     else:
-#         redis.set(str(date_tomorrow), str(a))
-#
-#
-# print(get_cache())
-
-
-# connection.close()
-# redis.close()
