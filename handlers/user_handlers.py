@@ -1,6 +1,7 @@
 import asyncio
+import logging
 from datetime import datetime
-from config_data.config import load_proxy
+from config_data.config import load_proxy, cats, dogs
 import requests
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart, StateFilter
@@ -15,6 +16,7 @@ from database.oracle_db import get_shifts, read_shifts, get_all_tabels, date2, m
 from aiogram.fsm.context import FSMContext
 from services.services import input_date
 
+logger = logging.getLogger(__name__)
 router = Router()
 secret = load_secret()
 admin_ids = 1
@@ -23,8 +25,8 @@ session = requests.Session()
 session.proxies = {'http': load_proxy(),
                    'https': load_proxy(),
                    }
-API_CATS_URL = 'https://api.thecatapi.com/v1/images/search'
-API_DOGS_URL = 'https://random.dog/woof.json'
+API_CATS_URL = cats()
+API_DOGS_URL = dogs()
 
 
 class FSMFillForm(StatesGroup):
@@ -36,11 +38,31 @@ class FSMFillForm(StatesGroup):
 @router.message(CommandStart(), StateFilter(default_state))
 async def process_start_command(message: Message):
     await cmd_start_db(message.from_user.id)
+    logger.info(f'---User {message.from_user.id} /start')
     await message.answer(
         text=f'👋👋👋 Добро пожаловать в Сменобот, {message.from_user.first_name}!\n'
              '⭕Для коректной работы бота нужно заполнить анкету! 👉 /fillform\n'
              'Чтобы узнать, что умеет этот бот 👉 /help'
     )
+
+
+@router.message(F.text.lower().in_(['/info']), StateFilter(default_state))
+async def info_command(message: Message):
+    cur.execute("SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=message.from_user.id))
+    info = cur.fetchall()[0]
+    tabel = info[-1]
+    time = info[-2]
+    reminder = info[-3]
+    if reminder == 1:
+        rem = 'включены'
+        await message.answer(f'🔹Введён номер {tabel} '
+                             f'\n🔹Напоминания о завтрашней смене - {rem} '
+                             f'({time})', reply_markup=yes_no_kb)
+    else:
+        rem = 'отключены'
+        await message.answer(f'🔹Введён номер {tabel} '
+                             f'\n⭕Напоминания о завтрашней смене {rem}', reply_markup=yes_no_kb)
+
 
 
 @router.message(F.text.lower().in_(['/help', 'помощь по работе бота', "помощь по работе бота 🆘"]),
@@ -54,21 +76,16 @@ async def process_cancel_command(message: Message):
     )
     await asyncio.sleep(1)
     await message.answer(
-        text='⭕Для коректной работы бота нужно заполнить анкету!\n👉 /fillform'
-
+        text='⭕Для коректной работы бота нужно заполнить анкету!\n👉 /fillform\n'
     )
-    await asyncio.sleep(1)
-    await message.answer(text='🔹 Узнать завтрашнюю смену можно с помощью команды /TS\n')
-    await asyncio.sleep(1)
+    await message.answer(text='🔹 Посмотреть информацию по ранее заполненной анкете\n👉 /info\n')
+    await message.answer(text='🔹 Узнать завтрашнюю смену можно с помощью команды\n👉 /TS\n')
     await message.answer(
         text='🔹Узнать смену на любую дату можно отправив боту сообщение в формате "дд.мм.гггг"\n')
-    await asyncio.sleep(1)
     await message.answer(
-        text='🤓Например чтобы узнать график работы на 23 февраля 2024 года - отправьте боту 23.02.2024')
-    await asyncio.sleep(1)
+        text='🤓Например чтобы узнать график работы на 23 февраля 2024 года - отправьте боту 23.02.2024\n')
     await message.answer(
-        text='🔹Также можно сделать запрос через календарь по нажатию на нижнюю кнопку "Календарь"'
-             '\nИли написать "Календарь" либо "Дата" боту)')
+        text='🔹Также можно сделать запрос через календарь по нажатию на нижнюю кнопку "Календарь"\n')
     await message.answer(
         text='😸Приятного пользования', reply_markup=yes_no_kb)
 
@@ -84,6 +101,7 @@ async def process_cancel_command(message: Message):
 
 @router.message(Command(commands='cancel'), ~StateFilter(default_state))
 async def process_cancel_command_state(message: Message, state: FSMContext):
+    logger.info(f'---User {message.from_user.id} cancel form filling /fillform')
     await message.answer(
         text='❌ Вы прервали заполнение анкеты\n\n'
              'Чтобы снова перейти к заполнению анкеты\n 👉 /fillform'
@@ -94,6 +112,7 @@ async def process_cancel_command_state(message: Message, state: FSMContext):
 
 @router.message(F.text.lower().in_(['/fillform', "изменить настройки анкеты ⚙"]), StateFilter(default_state))
 async def process_fillform_command(message: Message, state: FSMContext):
+    logger.info(f'---User {message.from_user.id} starts /fillform')
     await message.answer(text=' 🖥 Пожалуйста, введите ваш номер CSP:')
     await state.set_state(FSMFillForm.fill_tabel)
 
@@ -102,6 +121,7 @@ async def process_fillform_command(message: Message, state: FSMContext):
                 lambda x: x.text.isdigit() and int(x.text) in get_all_tabels())
 async def process_tabel_sent(message: Message, state: FSMContext):
     await state.update_data(tabel=message.text)
+    logger.info(f'---User {message.from_user.id} fills tabel - {message.text}')
     await add_tabel(message.from_user.id, message.text)
 
     yes_news_button = InlineKeyboardButton(
@@ -140,6 +160,7 @@ async def warning_not_tabel(message: Message):
 async def process_notifications_press(callback: CallbackQuery, state: FSMContext):
     await state.update_data(notifications=callback.data)
     await add_notifications(callback.from_user.id, int(callback.data))
+    logger.info(f'--User {callback.from_user.id} set notifications to {int(callback.data)}')
     await callback.message.delete()
     await callback.message.answer(
         text='😊 Теперь вы можете делать запросы по рабочим сменам\n', reply_markup=yes_no_kb)
@@ -152,6 +173,7 @@ async def process_notifications_press(callback: CallbackQuery, state: FSMContext
 async def process_notifications_press(callback: CallbackQuery, state: FSMContext):
     await state.update_data(notifications=callback.data)
     await add_notifications(callback.from_user.id, int(callback.data))
+    logger.info(f'--User {callback.from_user.id} sets notification to {int(callback.data)}')
     await callback.message.delete()
     await state.set_state(FSMFillForm.fill_time)
 
@@ -221,6 +243,7 @@ async def process_notifications_press(callback: CallbackQuery, state: FSMContext
 async def process_notifications_press(callback: CallbackQuery, state: FSMContext):
     await state.update_data(notifications_time=callback.data)
     await add_notifications_time(callback.from_user.id, str(callback.data))
+    logger.info(f'--User {callback.from_user.id} sets notification time to {str(callback.data)}')
     await callback.message.delete()
     await callback.message.answer(
         text='😊 Теперь вы можете делать запросы по рабочим сменам', reply_markup=yes_no_kb
@@ -241,44 +264,56 @@ async def warning_not_notification(message: Message):
 @router.message(F.text.lower().in_(['какая смена завтра', '/ts', 'какая завтра смена 🤔']), StateFilter(default_state))
 async def tomorrow_shift(message: Message):
     cur.execute("SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=message.from_user.id))
-    print(message.from_user.id)
+    logger.info(f'/ts request from user {message.from_user.id} handled')
     try:
         result = cur.fetchall()[0][-1]
-        print(result)
         if result:
+            logger.info(f'---User {message.from_user.id} got request for /ts')
             await message.answer(f'Завтра - {date2()} \nУ вас {str(read_shifts(get_shifts(date2(), result)))}',
                                  reply_markup=yes_no_kb)
         else:
+            logger.error(f'!--User {message.from_user.id} has error with request for /ts (/fillform)')
             await message.answer(f'⛔ Вы не заполнили форму \n👉 /fillform')
     except IndexError:
+        logger.error(f'!--User {message.from_user.id} has error with request for /ts (/start)')
         await message.answer(f'⛔ Ошибка!\n'
                              f'Нажмите 👉 /start\n'
                              f'Повторите заполнение формы\n👉 /fillform ')
 
 
 @router.message(F.text.lower().in_(["котик", "кот", "кошечка", "кошка", "котэ", "котейка", "киса", "кисуня", "кисуля",
-                                    "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾", "🐱", "🐈", "🐈‍⬛", "кошак"]),
+                                    "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾", "🐱", "🐈", "🐈‍⬛",
+                                    "кошара", "кошак"]),
                 StateFilter(default_state))
-async def tomorrow_shift(message: Message):
-    cat_response = session.get(API_CATS_URL)
-    cat_link = cat_response.json()[0]['url']
-    await message.answer_photo(cat_link)
-    await message.answer(f'😸 Вот вам котик ', reply_markup=yes_no_kb)
+async def cat(message: Message):
+    try:
+        cat_response = session.get(API_CATS_URL)
+        cat_link = cat_response.json()[0]['url']
+        await message.answer_photo(cat_link)
+        await message.answer(f'😸 Вот вам котик ', reply_markup=yes_no_kb)
+    except requests.exceptions.ConnectionError:
+        logger.error(f'!--CATS UNAVAILABLE!!!')
+        await message.answer(f'😿 Тут мог быть котик, но произошла ошибка', reply_markup=yes_no_kb)
 
 
 @router.message(F.text.lower().in_(["песик", "пес", "собака", "собакен", "пёс", "пёсель", "пёсик",
                                     "🐶", "🐕", "🐩", "🦮", "🐕‍", "🐕‍🦺"]),
                 StateFilter(default_state))
-async def tomorrow_shift(message: Message):
-    dog_response = session.get(API_DOGS_URL)
-    dog_link = dog_response.json()['url']
-    await message.answer_photo(dog_link)
-    await message.answer(f'🐶 Вот вам пёсик', reply_markup=yes_no_kb)
+async def dog(message: Message):
+    try:
+        dog_response = session.get(API_DOGS_URL)
+        dog_link = dog_response.json()['url']
+        await message.answer_photo(dog_link)
+        await message.answer(f'🐶 Вот вам пёсик', reply_markup=yes_no_kb)
+    except requests.exceptions.ConnectionError:
+        logger.error(f'!--DOGS UNAVAILABLE!!!')
+        await message.answer(f'😢 Тут мог быть пёсик, но произошла ошибка', reply_markup=yes_no_kb)
 
 
 @router.message(F.text.lower().in_(["дата", "календарь 🗓️", "календарь"]),
                 StateFilter(default_state))
 async def calendar_show(message: Message):
+    logger.info(f' User {message.from_user.id} ask for Calendar ')
     await message.answer(text='Выберите дату', reply_markup=await SimpleCalendar(locale='ru_RU').start_calendar(
         year=int(datetime.now().strftime("%Y")), month=int(datetime.now().strftime("%m"))))
 
@@ -292,17 +327,21 @@ async def process_simple_calendar(callback_query: CallbackQuery, callback_data: 
     selected, date = await calendar.process_selection(callback_query, callback_data)
     if selected:
         if match_dates(date.strftime("%d.%m.%Y")):
+            logger.info(f'User {str(callback_query.from_user.id)} asks for calendar on {str(date)}')
             cur.execute(
                 "SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=str(callback_query.from_user.id)))
             try:
                 result = cur.fetchall()[0][-1]
                 if result:
+                    logger.info(f'User {str(callback_query.from_user.id)} -- Successfully')
                     await callback_query.message.answer(f'{date.strftime("%d.%m.%Y")}\nУ вас '
                                                         f'{str(read_shifts(get_shifts(input_date(match_dates(date.strftime("%d.%m.%Y"))), result)))}',
                                                         reply_markup=yes_no_kb)
                 else:
+                    logger.error(f'User {str(callback_query.from_user.id)} -- Error (/fillform)')
                     await callback_query.message.answer(f'⛔ Вы не заполнили форму \n👉 /fillform')
             except IndexError:
+                logger.error(f'User {str(callback_query.from_user.id)} -- Error (/start)')
                 await callback_query.message.answer(f'⛔ Ошибка!\n'
                                                     f'Нажмите 👉 /start\n'
                                                     f'Повторите заполнение формы\n👉 /fillform ')
@@ -314,16 +353,19 @@ async def process_simple_calendar(callback_query: CallbackQuery, callback_data: 
 async def send_echo(message: Message):
     if match_dates(message.text):
         cur.execute("SELECT * FROM accounts WHERE tg_id == {user_id}".format(user_id=message.from_user.id))
-        print(message.from_user.id)
+        logger.info(f'User {message.from_user.id} ask for shift on {message.text}')
         try:
             result = cur.fetchall()[0][-1]
             if result:
+                logger.info(f'User {message.from_user.id} asks for shift on {message.text} successfully')
                 await message.reply(f'\nУ вас '
                                     f'{str(read_shifts(get_shifts(input_date(match_dates(message.text)), result)))}',
                                     reply_markup=yes_no_kb)
             else:
+                logger.error(f'!--User {message.from_user.id} asks for shift on {message.text} error (/fillform)')
                 await message.answer(f'⛔ Вы не заполнили форму \n👉 /fillform')
         except IndexError:
+            logger.error(f'!--User {message.from_user.id} ask for shift on {message.text} error (/start)')
             await message.answer(f'⛔ Ошибка!\n'
                                  f'Нажмите 👉 /start\n'
                                  f'Повторите заполнение формы\n👉 /fillform ')

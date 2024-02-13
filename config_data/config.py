@@ -52,3 +52,14 @@ def load_oracle_password(path: str | None = None):
     env.read_env(path)
     return env('ORACLE_PASSWORD')
 
+
+def cats(path: str | None = None):
+    env = Env()
+    env.read_env(path)
+    return env('API_CATS_URL')
+
+
+def dogs(path: str | None = None):
+    env = Env()
+    env.read_env(path)
+    return env('API_DOGS_URL')

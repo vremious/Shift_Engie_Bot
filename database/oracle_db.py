@@ -4,22 +4,30 @@ import re
 from config_data.config import load_oracle_password, load_oracle_dsn, load_oracle_user
 import logging
 
+logger = logging.getLogger(__name__)
+
 # Создание коннекта с БД Oracle (с использованием Thick Client)
 oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
-pool = oracledb.create_pool(
-    user=load_oracle_user(),
-    password=load_oracle_password(),
-    dsn=load_oracle_dsn(),
-    port=1521,
-    min=1, max=1, increment=0,
-    timeout=0)
-connection = pool.acquire()
+
+
+def pool():
+    return oracledb.create_pool(
+        user=load_oracle_user(),
+        password=load_oracle_password(),
+        dsn=load_oracle_dsn(),
+        port=1521,
+        min=1, max=1, increment=0)
+
+
+pool = pool()
 
 
 # Функция для поддержания коннекта с базой
 def maintain_connection():
-    cursor = connection.cursor()
-    cursor.execute("SELECT * FROM DUAL")
+    with pool.acquire() as connection:
+        cursor = connection.cursor()
+        select = cursor.execute("SELECT to_char(SYSDATE, 'HH24:MI:SS | dd.mm.yyyy') FROM DUAL")
+        return logger.info(f'ORACLE ANSWER RECEIVED: {[i for i in select][0][0]}')
 
 
 # Функция "даты завтрашенего дня"
@@ -36,18 +44,20 @@ def match_dates(date):
 
 # функция лля запроса в БД Oracle с рабочими сменами по дате и табельному номеру работника
 def get_shifts(date, tabel):
-    cursor = connection.cursor()
-    cursor.execute(
-        "SELECT AGENT, to_char(DT, 'dd.mm.yyyy'), GNAME, BEGIN1, DUR1, BREAK1, BEGIN2, DUR2, BREAK2, "
-        "SIGN FROM "
-        " t_graph_workday3 WHERE "
-        "to_char(DT,'dd.mm.yyyy') ='{date_month}' AND AGENT = '{tabel}'"
-        " AND STATUS = 1 ".format(date_month=date, tabel=tabel))
-    return [i for i in cursor]
+    with pool.acquire() as connection:
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT AGENT, to_char(DT, 'dd.mm.yyyy'), GNAME, BEGIN1, DUR1, BREAK1, BEGIN2, DUR2, BREAK2, "
+            "SIGN FROM "
+            " t_graph_workday3 WHERE "
+            "to_char(DT,'dd.mm.yyyy') ='{date_month}' AND AGENT = '{tabel}'"
+            " AND STATUS = 1 ".format(date_month=date, tabel=tabel))
+        return [i for i in cursor]
 
 
 # Функция
 def get_all_tabels():
+    connection = pool.acquire()
     cursor = connection.cursor()
     cursor.execute("SELECT DISTINCT AGENT FROM t_graph_workday3")
     return [i[0] for i in cursor]
