@@ -37,10 +37,10 @@ async def check():
 
 # Функция для поддержания коннекта с БД Oracle (Один запрос в 10 минут)
 async def oracle():
-    logger.info('Oracle connection maintained')
-    maintain_connection()
-    await asyncio.sleep(600)
-    await oracle()
+    while True:
+        logger.info('Oracle connection maintained')
+        maintain_connection()
+        await asyncio.sleep(20)
 
 
 # Синхронизация секунд при запуске бота (чтобы уведомления приходили ровно в 00 секунд)
