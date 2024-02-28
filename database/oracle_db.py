@@ -1,6 +1,5 @@
 import os
 import platform
-
 import oracledb
 import datetime
 import re
@@ -10,6 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Создание коннекта с БД Oracle (с использованием Thick Client)
+
 # oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
 d = None  # default suitable for Linux
 if platform.system() == "Darwin" and platform.machine() == "x86_64":  # macOS
@@ -17,6 +17,7 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":  # macOS
 elif platform.system() == "Windows":
     d = r"D:\instantclient_11_2"
 oracledb.init_oracle_client(lib_dir=d)
+
 
 
 def pool():
