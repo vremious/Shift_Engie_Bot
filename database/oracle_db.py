@@ -1,3 +1,4 @@
+import math
 import os
 import platform
 import oracledb
@@ -165,14 +166,11 @@ def read_shifts(results):
                 leftover_hours = '0'
             elif leftover_hours == 24:
                 leftover_hours = '0'
-            leftover_minutes = int(time % 1 * 60)
-            if leftover_minutes == 0:
-                leftover_minutes = '00'
-
-            leftover = f'{leftover_hours}:{leftover_minutes}'
+            leftover_minutes = math.ceil(float(time % 1 * 60))
+            leftover = f'{leftover_hours}:{leftover_minutes:02d}'
             return leftover
-        elif time == 0:
-            return '0:00'
-
     return shift_type()
+
+
+
 
