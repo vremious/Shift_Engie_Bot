@@ -1,6 +1,6 @@
-import math
 import os
 import platform
+
 import oracledb
 import datetime
 import re
@@ -10,7 +10,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Создание коннекта с БД Oracle (с использованием Thick Client)
-
 # oracledb.init_oracle_client(lib_dir=r"D:\instantclient_11_2")
 d = None  # default suitable for Linux
 if platform.system() == "Darwin" and platform.machine() == "x86_64":  # macOS
@@ -18,7 +17,6 @@ if platform.system() == "Darwin" and platform.machine() == "x86_64":  # macOS
 elif platform.system() == "Windows":
     d = r"D:\instantclient_11_2"
 oracledb.init_oracle_client(lib_dir=d)
-
 
 
 def pool():
@@ -79,11 +77,11 @@ def read_shifts(results):
     try:
         shift = results[0][2]
         time_start1 = results[0][3]
-        # if time_start1 == 0:
-        #     time_start1 = 0.00000001
+        if time_start1 == 0:
+            time_start1 = 0.00000001
         time_start2 = results[0][6]
-        # if time_start2 == 0:
-        #     time_start2 = 0.00000001
+        if time_start2 == 0:
+            time_start2 = 0.00000001
         time_shift_dur1 = results[0][4]
         time_shift_dur2 = results[0][7]
         time_break1 = results[0][5]
@@ -160,14 +158,21 @@ def read_shifts(results):
 
     # Функция-конвертер времени из десятичных дробей в часы:минуты
     def time_converter(time):
-        # if time != 0:
-        leftover_hours = int(time // 1)
-        if leftover_hours == 0:
-            leftover_hours = '0'
-        elif leftover_hours == 24:
-            leftover_hours = '0'
-        leftover_minutes = math.ceil(float(time % 1 * 60))
-        leftover = f'{leftover_hours}:{leftover_minutes:02d}'
-        return leftover
+        if time != 0:
+            leftover_hours = int(time // 1)
+            if leftover_hours == 0:
+                leftover_hours = '0'
+            elif leftover_hours == 24:
+                leftover_hours = '0'
+            leftover_minutes = int(time % 1 * 60)
+            if leftover_minutes == 0:
+                leftover_minutes = '00'
+
+            leftover = f'{leftover_hours}:{leftover_minutes}'
+            return leftover
+        elif time == 0:
+            return '0:00'
+
     return shift_type()
 
+# print(str(read_shifts(get_shifts('29.02.2024', 5109))))

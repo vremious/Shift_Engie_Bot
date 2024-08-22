@@ -3,6 +3,8 @@ import logging
 import datetime
 import sys
 
+import aiogram.exceptions
+import oracledb
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from config_data.config import *
@@ -21,28 +23,35 @@ bot = Bot(token=config.tg_bot.token, parse_mode='HTML', session=session)
 
 
 # Функция отправки напоминаний пользователям
+
 async def check():
     logger.info('Reminder started!')
     while True:
         cur.execute("SELECT * FROM accounts;")
         reminders_results = cur.fetchall()
         time = datetime.datetime.now().strftime("%H:%M")
-        for x in reminders_results:
+        for col in reminders_results:
             try:
-                if x[5] == time:
-                    await bot.send_message(int(x[1]), f'Напоминание: завтра у Вас '
-                                                      f'{str(read_shifts(get_shifts(date2(), x[6])))}')
-            except:
-                logger.debug(f'user {x[1]} blocked bot and left channel')
+                if col[5] == time:
+                    await bot.send_message(int(col[1]), f'Напоминание: завтра у Вас '
+                                                        f'{str(read_shifts(get_shifts(date2(), col[6])))}')
+                    logger.debug(f'user {col[1]} got notifications for {col[5]}')
+            except aiogram.exceptions.TelegramBadRequest:
+                logger.debug(f'user {col[1]} blocked bot and left channel')
         await asyncio.sleep(60)
 
 
 # Функция для поддержания коннекта с БД Oracle (Один запрос в 10 минут)
 async def oracle():
     while True:
-        logger.info('Oracle connection maintained')
-        maintain_connection()
-        await asyncio.sleep(600)
+        try:
+            maintain_connection()
+            logger.info('Oracle connection maintained')
+            await asyncio.sleep(600)
+        except oracledb.DatabaseError:
+            logger.warning('Oracle lost connection! Retry in 10 seconds')
+            await asyncio.sleep(10)
+            continue
 
 
 # Синхронизация секунд при запуске бота (чтобы уведомления приходили ровно в 00 секунд)
